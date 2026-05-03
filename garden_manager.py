@@ -12,6 +12,7 @@ from datetime import date
 
 from advisor import generate_full_advice
 from numazu_climate import NUMAZU_FEATURES, get_climate, fetch_weather
+from social_handler import compose_garden_post, post_text
 
 PLANTS_FILE = Path(__file__).parent / "plants.json"
 
@@ -140,6 +141,29 @@ def cmd_weather(args: argparse.Namespace) -> None:
         print(f"  ※ {weather['note']}")
 
 
+def cmd_post(args: argparse.Namespace) -> None:
+    """Threads向け投稿テキストを生成して送信（トークン未設定時はシミュレーション）"""
+    plants = load_plants()
+    weather = fetch_weather()
+    text = compose_garden_post(plants, weather)
+
+    if args.preview:
+        print_header("Threads 投稿プレビュー")
+        print(text)
+        print()
+        print("  ※ --preview モード: 実際の投稿は行いません。")
+        print("  ※ 送信するには: python garden_manager.py post")
+        return
+
+    print_header("Threads 投稿")
+    result = post_text(text)
+    if result.get("simulated"):
+        print()
+        print("  設定サーバーを起動して THREADS_TOKEN を設定してください:")
+        print("    python config_server.py")
+        print("    → http://localhost:8080/")
+
+
 def cmd_status(args: argparse.Namespace) -> None:
     """全植物のサマリー表示"""
     plants = load_plants()
@@ -172,6 +196,8 @@ def main() -> None:
   python garden_manager.py calendar                # 年間カレンダー
   python garden_manager.py weather                 # 気象情報
   python garden_manager.py status                  # 全体サマリー
+  python garden_manager.py post                    # Threads投稿（未設定時はシミュレーション）
+  python garden_manager.py post --preview          # 投稿プレビューのみ
         """,
     )
     subparsers = parser.add_subparsers(dest="command")
@@ -187,6 +213,9 @@ def main() -> None:
     subparsers.add_parser("weather", help="沼津市気象情報")
     subparsers.add_parser("status", help="全体サマリー")
 
+    post_parser = subparsers.add_parser("post", help="Threads向け投稿（トークン未設定時はシミュレーション）")
+    post_parser.add_argument("--preview", action="store_true", help="送信せずにプレビューのみ表示")
+
     args = parser.parse_args()
 
     commands = {
@@ -195,6 +224,7 @@ def main() -> None:
         "calendar": cmd_calendar,
         "weather": cmd_weather,
         "status": cmd_status,
+        "post": cmd_post,
     }
 
     if args.command is None:
